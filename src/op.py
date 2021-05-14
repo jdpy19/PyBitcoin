@@ -158,7 +158,6 @@ def op_if(stack, items):
 def op_notif(stack, items):
   if len(stack) < 1:
     return False
-
   true_items = []
   false_items = []
   current_array = true_items
@@ -180,7 +179,6 @@ def op_notif(stack, items):
         current_array.append(item)
     else:
       current_array.append(item)
-
   if not found:
     return False
   element = stack.pop()
@@ -189,6 +187,14 @@ def op_notif(stack, items):
   else:
     items[:0] = false_items
   return True
+
+def op_else(stack):
+  raise NotImplementedError
+
+def op_endif(stack):
+  raise NotImplementedError
+
+
 
 def op_verify(stack):
   if len(stack) < 1:
@@ -498,6 +504,120 @@ def op_greaterthanorequal(stack):
     stack.append(encode_num(1))
   else:
     stack.append(encode_num(0))
+  return True
+
+def op_min(stack):
+  if len(stack) < 2:
+    return False
+  element_1 = decode_num(stack.pop())
+  element_2 = decode_num(stack.pop())
+  if element_1 < element_2:
+    stack.append(encode_num(element_1))
+  else:
+    stack.append(encode_num(element_2))
+  return True
+
+def op_max(stack):
+  if len(stack) < 2:
+    return False
+  element_1 = decode_num(stack.pop())
+  element_2 = decode_num(stack.pop())
+  if element_1 > element_2:
+    stack.append(encode_num(element_1))
+  else:
+    stack.append(encode_num(element_2))
+  return True
+
+def op_within(stack):
+  if len(stack) < 3:
+    return False
+  maximum = decode_num(stack.pop())
+  minimum = decode_num(stack.pop())
+  element = decode_num(stack.pop())
+  if element >= minimum and element < maximum:
+    stack.append(encode_num(1))
+  else:
+    stack.append(encode_num(0))
+  return True
+
+def op_ripemd160(stack):
+  if len(stack) < 1:
+    return False
+  element = stack.pop()
+  stack.append(hashlib.new('ripemd160', element).digest())
+  return True
+
+def op_sha1(stack):
+  if len(stack) < 1:
+    return False
+  element = stack.pop()
+  stack.append(hashlib.sha1(element).digest())
+  return True
+
+def op_sha256(stack):
+  if len(stack) < 1:
+    return False
+  element = stack.pop()
+  stack.append(hashlib.sha256(element).digest())
+  return True
+
+def op_hash160(stack):
+  if len(stack) < 1:
+    return False
+  element = stack.pop()
+  stack.append(hash160(element))
+  return True
+
+def op_hash256(stack):
+  if len(stack) < 1:
+    return False
+  element = stack.pop()
+  stack.append(hash256(element))
+  return True
+
+def op_checksig(stack, z):
+  raise NotImplementedError
+
+def op_checksigverify(stack, z):
+  return op_checksig(stack, z) and op_verify(stack)
+
+def op_checkmultisig(stack, z):
+  raise NotImplementedError
+
+def op_checkmultisigverify(stack, z):
+  return op_checkmultisig(stack, z) and op_verify(stack)
+
+def op_checklocktimeverify(stack, locktime, sequence):
+  if sequence == 0xffffffff:
+    return False
+  if len(stack) < 1:
+    return False
+  element = decode_num(stack.pop())
+  if element < 0:
+    return False
+  if element < 500000000 and locktime > 500000000:
+    return False
+  if locktime < element:
+    return False
+  return True
+
+def op_checksequenceverify(stack, version, sequence):
+  if sequence & (1 << 31) == (1 << 31):
+    return False
+  if len(stack) < 1:
+    return False
+  element = decode_num(stack[-1])
+  if element < 0:
+    return False
+  if element & (1 << 31) == (1 << 31):
+    if version < 2:
+      return False
+    elif sequence & (1 << 31) == (1 << 31):
+      return False
+    elif element & (1 << 22) != sequence & (1 << 22):
+      return False
+    elif element & 0xffff > sequence & 0xffff:
+      return False
   return True
 
 OP_CODE_FUNCTIONS = {
