@@ -1,10 +1,10 @@
 from io import BytesIO
 from unittest import TestCase
 
-from src.tx import Tx
+from src.tx import Tx, TxFetcher
 
 class TxTest(TestCase):
-  cache_file = '../tx.cache'
+  cache_file = 'cache/tx.cache'
 
   @classmethod
   def setUpClass(cls):

@@ -9,7 +9,7 @@ from .helper import (
   hash256,
   int_to_little_endian,
   little_endian_to_int,
-    read_varint,
+  read_varint,
 )
 from .script import Script
 
@@ -19,21 +19,52 @@ class TxFetcher:
   @classmethod
   def get_url(cls, testnet=False):
     if testnet:
-      return 'https://blockstream.info/testnet/api/'
+      return 'https://blockstream.info/testnet/api'
     else:
-      return 'https://blockstream.info/api/'
+      return 'https://blockstream.info/api'
 
   @classmethod
   def fetch(cls, tx_id, testnet=False, fresh=False):
-    raise NotImplementedError
+    if fresh or (tx_id not in cls.cache):
+      print(testnet)
+      url = f'{cls.get_url(testnet)}/tx/{tx_id}/hex'
+      print(url)
+      response = requests.get(url)
+      try:
+        raw = bytes.fromhex(response.text.strip())
+      except ValueError:
+        raise ValueError(f'Unexpected Response: {response.text}')
+      if raw[4] == 0:
+        raw = raw[:4] + raw[6:]
+        tx = Tx.parse(BytesIO(raw), testnet=testnet)
+        tx.locktime = little_endian_to_int(raw[-4:])
+      else:
+        tx = Tx.parse(BytesIO(raw), testnet=testnet)
+      if tx.id() != tx_id:
+        raise ValueError(f'Not the same id: {tx.id} vs {tx_id}')
+      cls.cache[tx_id] = tx
+    cls.cache[tx_id].testnet = testnet
+    return cls.cache[tx_id]
 
   @classmethod
   def load_cache(cls, filename):
-    raise NotImplementedError
+    disk_cache = json.loads(open(filename, 'r').read())
+    for k, raw_hex in disk_cache.items():
+      raw = bytes.fromhex(raw_hex)
+      if raw[4] == 0:
+        raw = raw[:4] + raw[6:]
+        tx = Tx.parse(BytesIO(raw))
+        tx.locktime = little_endian_to_int(raw[-4:])
+      else:
+        tx = Tx.parse(BytesIO(raw))
+      cls.cache[k] = tx
 
   @classmethod
   def dump_cache(cls, filename):
-    raise NotImplementedError
+    with open(filename, 'w') as f:
+      to_dump = {k: tx.serialize().hex() for k, tx in cls.cache.items()}
+      s = json.dumps(to_dump, sort_keys=True, indent=2)
+      f.write(s)
 
 class Tx:
   def __init__(self, version, tx_ins, tx_outs, locktime, testnet=False):
@@ -62,14 +93,42 @@ class Tx:
 
   @classmethod
   def parse(cls, s, testnet=False):
-    raise NotImplementedError
+    '''Takes a byte stream and parses the tx_input at the start
+    return a Tx object
+    '''
+    version = little_endian_to_int(s.read(4))
+    num_inputs = read_varint(s)
+    inputs = []
+    for _ in range(num_inputs):
+      inputs.append(TxIn.parse(s))
+    num_outputs = read_varint(s)
+    outputs = []
+    for _ in range(num_outputs):
+      outputs.append(TxOut.parse(s))
+    locktime = little_endian_to_int(s.read(4))
+    return cls(version, inputs, outputs, locktime, testnet)
 
   @classmethod
   def serialize(self):
-    raise NotImplementedError
+    '''Retuns the byte serialization of the transaction'''
+    result = int_to_little_endian(self.version, 4)
+    result += encode_varint(len(self.tx_ins))
+    for tx_in in self.tx_ins:
+      result += tx_in.serialize()
+    result += encode_varint(len(self.tx_outs))
+    for tx_out in self.tx_outs:
+      result += tx_out.serialize()
+    result += int_to_little_endian(self.locktime, 4)
+    return result
 
   def fee(self):
-    raise NotImplementedError
+    input_sum = 0
+    output_sum = 0
+    for tx_in in self.tx_ins:
+      input_sum += tx_in.value()
+    for tx_out in self.tx_outs:
+      output_sum += tx_out.amount
+    return input_sum - output_sum
 
 class TxIn:
   def __init__(self, prev_tx, prev_index, script_sig=None, sequence=0xffffffff):
@@ -86,22 +145,39 @@ class TxIn:
 
   @classmethod
   def parse(cls, s):
-    raise NotImplementedError
+    '''Takes a byte stream and parses the tx_input at the start
+    return a TxIn object
+    '''
+    prev_tx = s.read(32)[::-1]
+    prev_index = little_endian_to_int(s.read(4))
+    script_sig = Script.parse(s)
+    sequence = little_endian_to_int(s.read(4))
+    return cls(prev_tx, prev_index, script_sig, sequence)
 
   def serialize(self):
-    raise NotImplementedError
+    '''Returns the byte serialization of the transaction input'''
+    result = self.prev_tx[::-1]
+    result += int_to_little_endian(self.prev_index, 4)
+    result += self.script_sig.serialize()
+    result += int_to_little_endian(self.sequence, 4)
+    return result
 
   def fetch_tx(self, testnet=False):
-    raise NotImplementedError
+    return TxFetcher.fetch(self.prev_tx.hex(), testnet=testnet)
 
   def value(self, testnet=False):
-    raise NotImplementedError
-
-  def value(self, testnet=False):
-    raise NotImplementedError
+    '''Get the output value(satoshi) by looking up the tx hash
+    Returns the amount in satoshi.
+    '''
+    tx = self.fetch_tx(testnet=testnet)
+    return tx.tx_outs[self.prev_index].amount
 
   def script_pubkey(self, testnet=False):
-    raise NotImplementedError
+    '''Get the ScriptPubKey by looking up the tx hash.
+    Returns a Script object.
+    '''
+    tx = self.fetch_tx(testnet=testnet)
+    return tx.tx_outs[self.prev_index].script_pubkey
 
 class TxOut:
   def __init__(self, amount, script_pubkey):
@@ -113,7 +189,15 @@ class TxOut:
 
   @classmethod
   def parse(cls, s):
-    raise NotImplementedError
+    '''Takes a byte stream and parses the tx_output at the start
+    return a TxOut object
+    '''
+    amount = little_endian_to_int(s.read(8))
+    script_pubkey = Script.parse(s)
+    return cls(amount, script_pubkey)
 
   def serialize(self):
-    raise NotImplementedError
+    '''Retusn the byte serialization of the transaction output'''
+    result = int_to_little_endian(self.amount, 8)
+    result += self.script_pubkey.serialize()
+    return result
