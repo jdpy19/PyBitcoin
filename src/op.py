@@ -5,6 +5,11 @@ from .helper import (
   hash256,
 )
 
+from .secp256k1 import (
+  S256Point,
+  Signature
+)
+
 def encode_num(num):
   if num == 0:
     return b''
@@ -276,7 +281,7 @@ def op_drop(stack):
 def op_dup(stack):
   if len(stack) < 1:
     return False
-  stack.extend(stack[-1])
+  stack.append(stack[-1])
   return True
 
 def op_nip(stack):
@@ -576,13 +581,57 @@ def op_hash256(stack):
   return True
 
 def op_checksig(stack, z):
-  raise NotImplementedError
+  if len(stack) < 2:
+    return False
+  sec_pubkey = stack.pop()
+  der_signature = stack.pop()[:-1]
+  try:
+    point = S256Point.parse(sec_pubkey)
+    sig = Signature.parse(der_signature)
+  except (ValueError, SyntaxError) as e:
+    return False
+  if point.verify(z, sig):
+    stack.append(encode_num(1))
+  else:
+    stack.append(encode_num(0))
+  return True
 
 def op_checksigverify(stack, z):
   return op_checksig(stack, z) and op_verify(stack)
 
+def pop_n_elements(stack, n):
+  output = []
+  if len(stack) < (n + 1):
+    return False
+  for _ in range(n):
+    output.append(stack.pop())
+  return stack, output
+
 def op_checkmultisig(stack, z):
-  raise NotImplementedError
+  if len(stack) < 1:
+    return False
+  
+  n = decode_num(stack.pop())
+  stack, sec_pubkeys = pop_n_elements(stack, n)
+
+  m = decode_num(stack.pop())
+  stack, der_signatures = pop_n_elements(stack, m)
+
+  stack.pop()
+  try:
+    points = [S256Point.parse(sec) for sec in sec_pubkeys]
+    sigs = [Signature.parse(der[:-1]) for der in der_signatures]
+    for sig in sigs:
+      if len(points) == 0:
+        return False
+      while points:
+        point = points.pop(0)
+        if point.verify(z, sig):
+          break
+    stack.append(encode_num(1))
+  except (ValueError, SyntaxError):
+    return False
+  return True
 
 def op_checkmultisigverify(stack, z):
   return op_checkmultisig(stack, z) and op_verify(stack)

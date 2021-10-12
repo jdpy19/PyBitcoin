@@ -1,6 +1,10 @@
 import hashlib
 
+SIGHASH_ALL = 1
+SIGHASH_NONE = 2
+SIGHASH_SINGLE = 3
 BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+SATOSHIS = 100000000
 
 def hash160(s):
   '''sha256 followed by ripemd160'''
@@ -64,7 +68,6 @@ def read_varint(s):
   else:
     # anything else is just the integer
     return i
-
 
 def encode_varint(i):
   '''encodes an integer as a varint'''

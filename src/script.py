@@ -13,6 +13,7 @@ from .op import (
 )
 
 LOGGER = getLogger(__name__)
+LOGGER.setLevel('INFO')
 
 class Script:
   def __init__(self, cmds=None):
@@ -34,6 +35,9 @@ class Script:
         result.append(cmd.hex())
     return ' '.join(result)
   
+  def __add__(self, other):
+    return Script(self.cmds + other.cmds)
+
   @classmethod
   def parse(cls, s):
     length = read_varint(s)

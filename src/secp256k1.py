@@ -1,6 +1,8 @@
 from .ecc import FieldElement, Point
 from random import randint
 from .helper import hash160, encode_base58_checksum
+
+from io import BytesIO
 import hashlib
 import hmac
 
@@ -15,6 +17,9 @@ class S256Field(FieldElement):
 
   def __repr__(self):
     return '{:x}'.format(self.num).zfill(64)
+
+  def sqrt(self):
+    return self**((P + 1) // 4)
 
 class S256Point(Point):
   def __init__(self, x, y, a=None, b=None):
@@ -60,6 +65,7 @@ class S256Point(Point):
     prefix = b'\x6f' if testnet else b'\x00'
     return encode_base58_checksum(prefix + h160)
 
+  @classmethod
   def parse(self, sec_bin):
     '''returns a Point object from a SEC binary (not hex)'''
     if sec_bin[0] == 4:
@@ -67,7 +73,7 @@ class S256Point(Point):
       y = int.from_bytes(sec_bin[33:65], 'big')
       return S256Point(x=x, y=y)
     else:
-      x = S255Field(int.from_bytes(sec_bin[1:], 'big'))
+      x = S256Field(int.from_bytes(sec_bin[1:], 'big'))
       alpha = x**3 + S256Field(B)
       beta = alpha.sqrt()
 
@@ -104,6 +110,29 @@ class Signature:
     s_bin = der_preparation(self.s)
     result = bytes([2, len(r_bin)]) + r_bin + bytes([2, len(s_bin)]) + s_bin
     return bytes([0x30, len(result)]) + result
+
+  @classmethod
+  def parse(cls, signature_bin):
+    s = BytesIO(signature_bin)
+    compound = s.read(1)[0]
+    if compound != 0x30:
+      raise SyntaxError("Bad Signature")
+    length = s.read(1)[0]
+    if length + 2 != len(signature_bin):
+      raise SyntaxError("Bad Signature Length")
+    marker = s.read(1)[0]
+    if marker != 0x02:
+      raise SyntaxError("Bad Signature")
+    rlength = s.read(1)[0]
+    r = int.from_bytes(s.read(rlength), 'big')
+    marker = s.read(1)[0]
+    if marker != 0x02:
+      raise SyntaxError("Bad Signature")
+    slength = s.read(1)[0]
+    s = int.from_bytes(s.read(slength), 'big')
+    if len(signature_bin) != 6 + rlength + slength:
+      raise SyntaxError("Signature too long")
+    return cls(r, s)
 
 class PrivateKey:
   def __init__(self, secret):

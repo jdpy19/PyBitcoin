@@ -2,6 +2,7 @@ from io import BytesIO
 from unittest import TestCase
 
 from src.tx import Tx, TxFetcher
+from src.secp256k1 import PrivateKey
 
 class TxTest(TestCase):
   cache_file = 'cache/tx.cache'
@@ -58,3 +59,26 @@ class TxTest(TestCase):
     stream = BytesIO(raw_tx)
     tx = Tx.parse(stream)
     self.assertEqual(tx.fee(), 140500)
+
+  def test_sig_hash(self):
+    tx = TxFetcher.fetch('452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03')
+    want = int('27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6', 16)
+    self.assertEqual(tx.sig_hash(0), want)
+
+  def test_verify_p2pkh(self):
+    tx = TxFetcher.fetch('452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03')
+    self.assertTrue(tx.verify())
+    tx = TxFetcher.fetch('5418099cc755cb9dd3ebc6cf1a7888ad53a1a3beb5a025bce89eb1bf7f1650a2', testnet=True)
+    self.assertTrue(tx.verify())
+
+  def test_verify_p2sh(self):
+    tx = TxFetcher.fetch('46df1a9484d0a81d03ce0ee543ab6e1a23ed06175c104a178268fad381216c2b')
+    self.assertTrue(tx.verify())
+
+  def test_sign_input(self):
+    private_key = PrivateKey(secret=60769130824319408353938620389252947401257764673552228227111641623711956330709)
+    stream = BytesIO(bytes.fromhex('01000000015dfd5bb40151e3398279e891bc5b6d58eca66438b47ede56a9e070d1dacb8dc8000000006c493046022100953952e9c985b3c41a3f03dedc27f9bde9d1535d239079edf3324fd5f5699508022100b0e0c9c557e5db1b6365880e42fb61b1cbe95543b03355418ae0bd54454db755012102226b91dd3420c54a0443b8bf151949235ac70678f7bd4ea27d76d93d44262e7dffffffff0280290b00000000001976a914171799463a09d271d928edb2b8ecdea8cf1f6d8788ac40420f00000000001976a91441da132d103a6d21382361d6487ae217f042c23588ac00000000'))
+    tx_obj = Tx.parse(stream, testnet=True)
+    self.assertTrue(tx_obj.sign_input(0, private_key))
+    want = '01000000015dfd5bb40151e3398279e891bc5b6d58eca66438b47ede56a9e070d1dacb8dc8000000006c493046022100953952e9c985b3c41a3f03dedc27f9bde9d1535d239079edf3324fd5f5699508022100b0e0c9c557e5db1b6365880e42fb61b1cbe95543b03355418ae0bd54454db755012102226b91dd3420c54a0443b8bf151949235ac70678f7bd4ea27d76d93d44262e7dffffffff0280290b00000000001976a914171799463a09d271d928edb2b8ecdea8cf1f6d8788ac40420f00000000001976a91441da132d103a6d21382361d6487ae217f042c23588ac00000000'
+    self.assertEqual(tx_obj.serialize().hex(), want)
