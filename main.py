@@ -15,6 +15,8 @@ def create_testnet_private_key(passphrase):
   return private_key
 
 def main():
+  tx = TxFetcher.fetch('46df1a9484d0a81d03ce0ee543ab6e1a23ed06175c104a178268fad381216c2b')
+  print(tx.verify())
   passphrase = b'IREALLYNEEDTOPOOPRIGHTNOW'
   private_key = create_testnet_private_key(passphrase)
   print(private_key.secret)

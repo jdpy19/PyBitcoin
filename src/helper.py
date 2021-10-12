@@ -81,3 +81,11 @@ def encode_varint(i):
     return b'\xff' + int_to_little_endian(i, 8)
   else:
     raise ValueError('integer too large: {}'.format(i))
+
+def h160_to_p2pkh_address(h160, testnet=False):
+  prefix = b'\x6f' if testnet else b'\x00'
+  return encode_base58_checksum(prefix + h160)
+
+def h160_to_p2sh_address(h160, testnet=False):
+  prefix = b'\xc4' if testnet else b'\x05'
+  return encode_base58_checksum(prefix + h160)
