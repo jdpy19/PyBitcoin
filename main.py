@@ -7,7 +7,7 @@ from src.helper import (
   SATOSHIS
 )
 from src.tx import TxIn, TxOut, Tx, TxFetcher
-from src.standard_scripts import p2pkh_script
+from io import BytesIO
 
 def create_testnet_private_key(passphrase):
   secret = little_endian_to_int(hash256(passphrase))
@@ -15,8 +15,6 @@ def create_testnet_private_key(passphrase):
   return private_key
 
 def main():
-  tx = TxFetcher.fetch('46df1a9484d0a81d03ce0ee543ab6e1a23ed06175c104a178268fad381216c2b')
-  print(tx.verify())
   passphrase = b'IREALLYNEEDTOPOOPRIGHTNOW'
   private_key = create_testnet_private_key(passphrase)
   print(private_key.secret)

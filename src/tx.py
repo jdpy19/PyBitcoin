@@ -184,6 +184,22 @@ class Tx:
     self.tx_ins[input_index].script_sig = script_sig
     return self.verify_input(input_index)
 
+  def is_coinbase(self):
+    if len(self.tx_ins) != 1:
+      return False
+    tx_in = self.tx_ins[0]
+    if tx_in.prev_tx != b'\x00' * 32:
+      return False
+    if tx_in.prev_index != 0xffffffff:
+      return False
+    return True
+
+  def coinbase_height(self):
+    if not self.is_coinbase():
+      return None
+    element = self.tx_ins[0].script_sig.cmds[0]
+    return little_endian_to_int(element)
+
 class TxIn:
   def __init__(self, prev_tx, prev_index, script_sig=None, sequence=0xffffffff):
     self.prev_tx = prev_tx
