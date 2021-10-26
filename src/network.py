@@ -176,9 +176,14 @@ class GetHeadersMessage:
   def serialize(self):
     '''Serialize this message to send over the network'''
     # protocol version is 4 bytes little-endian
+    result = int_to_little_endian(self.version, 4)
     # number of hashes is a varint
+    result += encode_varint(self.num_hashes)
     # start block is in little-endian
-    # end block is also in littl
+    result += self.start_block[::-1]
+    # end block is also in little-endian
+    result += self.end_block[::-1]
+    return result
 
 class HeadersMessage:
   command = b'headers'
@@ -213,15 +218,13 @@ class SimpleNode:
   def handshake(self):
     '''Do a handshake with the other node.
     Handshake is sending a version message and getting a verack back.'''
-    # create a version message
-    # send the command
-    # wait for a verack message
-    raise NotImplementedError
+    version = VersionMessage()
+    self.send(version)
+    self.wait_for((VerAckMessage))
 
   def send(self, message):  # <1>
     '''Send a message to the connected node'''
-    envelope = NetworkEnvelope(
-      message.command, message.serialize(), testnet=self.testnet)
+    envelope = NetworkEnvelope(message.command, message.serialize(), testnet=self.testnet)
     if self.logging:
       print('sending: {}'.format(envelope))
     self.socket.sendall(envelope.serialize())
