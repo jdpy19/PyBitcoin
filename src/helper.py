@@ -115,3 +115,18 @@ def calculate_new_bits(previous_bits, time_differential):
     time_differential = TWO_WEEKS // 4
   new_target = bits_to_target(previous_bits) * time_differential // TWO_WEEKS
   return target_to_bits(new_target)
+
+def merkle_parent(hash1, hash2):
+  raise NotImplementedError
+
+def merkle_parent_level(hashes):
+  raise NotImplementedError
+
+def merkle_root(hashes):
+  raise NotImplementedError
+
+def bit_field_to_bytes(bit_fields):
+  raise NotImplementedError
+
+def bytes_to_bit_field(some_bytes):
+  raise NotImplementedError

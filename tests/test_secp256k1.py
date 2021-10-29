@@ -99,3 +99,17 @@ class PrivateKeyTest(TestCase):
     pk = PrivateKey(0x1cca23de92fd1862fb5b76e5f4f50eb082165e5191e116c18ed1a6b24be6a53f)
     expected = 'cNYfWuhDpbNM1JWc3c6JTrtrFVxU4AGhUKgw5f93NP2QaBqmxKkg'
     self.assertEqual(pk.wif(compressed=True, testnet=True), expected)
+
+class SignatureTest(TestCase):
+  def test_der(self):
+    testcases = (
+      (1, 2),
+      (randint(0, 2**256), randint(0, 2**255)),
+      (randint(0, 2**256), randint(0, 2**255)),
+    )
+    for r, s in testcases:
+      sig = Signature(r, s)
+      der = sig.der()
+      sig2 = Signature.parse(der)
+      self.assertEqual(sig2.r, r)
+      self.assertEqual(sig2.s, s)
